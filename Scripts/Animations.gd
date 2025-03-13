@@ -98,4 +98,3 @@ static func modulateNumberDifference(node: CanvasItem, value: Variant, previousV
 	return tween
 
 #endregion
-

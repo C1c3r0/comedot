@@ -71,4 +71,3 @@ func buildLabelText(prefix: String, stat: Stat, suffix: String) -> String:
 		return str(prefix, format % stat.value, suffix)
 	else:
 		return str(prefix, stat.value, suffix)
-
