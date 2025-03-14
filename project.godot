@@ -38,6 +38,15 @@ GlobalUI="*res://AutoLoad/GlobalUI.tscn"
 GlobalSonic="*res://AutoLoad/GlobalSonic.tscn"
 TurnBasedCoordinator="*res://AutoLoad/TurnBasedCoordinator.tscn"
 Debug="*res://AutoLoad/Debug.tscn"
+ResourceRegistry="*res://Lab/Game/AutoLoad/resource_registry.gd"
+RNGManager="*res://Lab/Game/AutoLoad/rng_manager.gd"
+GameClock="*res://Lab/Game/AutoLoad/game_clock.gd"
+InteractionManager="*res://Lab/Game/AutoLoad/interaction_manager.gd"
+EntitySpawner="*res://Lab/Game/AutoLoad/entity_spawner.gd"
+EntitiesManager="*res://Lab/Game/AutoLoad/entities_manager.gd"
+SaveManager="*res://Lab/Game/AutoLoad/save_manager.gd"
+ThemeManager="*res://Lab/Game/AutoLoad/theme_manager.gd"
+DebugSettings="*res://Lab/Game/AutoLoad/debug_settings.gd"
 
 [debug]
 
@@ -74,9 +83,8 @@ folder_colors={
 "res://AutoLoad/": "orange",
 "res://Components/": "blue",
 "res://Entities/": "green",
-"res://Game/": "pink",
-"res://Games/": "orange",
 "res://Lab/": "gray",
+"res://Lab/Game/": "orange",
 "res://Resources/": "red",
 "res://Scenes/": "yellow",
 "res://Scripts/": "orange",
@@ -294,6 +302,7 @@ avoidance/layer_10="zones"
 [physics]
 
 common/physics_jitter_fix=0.0
+2d/physics_engine="Rapier2D"
 common/physics_interpolation=true
 
 [rendering]
