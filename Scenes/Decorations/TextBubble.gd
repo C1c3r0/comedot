@@ -5,6 +5,8 @@
 class_name TextBubble
 extends Node2D
 
+# TODO: Support fitting within the screen; i.e. when emitted from a node at the left/right edges of the screen, the text is outside the screen.
+
 
 #region State
 static var scenePath: String:
@@ -16,8 +18,9 @@ static var scenePath: String:
 #endregion
 
 
-static func create(parentNode: Node2D, bubbleText: String) -> TextBubble:
+static func create(parentNode: Node, bubbleText: String, offset: Vector2 = Vector2(0, -16)) -> TextBubble:
 	var newBubble: TextBubble = (load(scenePath) as PackedScene).instantiate()
+	newBubble.position += offset # The default offset is above a 16-pixel sprite.
 	parentNode.add_child(newBubble)
 	newBubble.label.text = bubbleText
 	# newBubble.owner = parentNode # TBD: No need for persistence across Save/Load, right?

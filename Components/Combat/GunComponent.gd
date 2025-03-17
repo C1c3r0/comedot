@@ -20,16 +20,6 @@ extends CooldownComponent
 @export var ammo:Stat ## The [Stat] Resource to use as the ammo. If omitted, no ammo is required to fire the gun.
 @export var ammoCost: int = 0 ## The ammo used per shot. 0 == Unlimited ammo. NOTE: A negative number will INCREASE the ammo when firing.
 
-## An OPTIONAL alternative way to specify the delay between shots, by overriding the [member cooldown] property with a shared [Stat].
-## IMPORTANT: Since [Stats] are integers only, the cooldown time represented by this Stat must be in MILLISECONDS, i.e. 1000 = 1 second, 500 = 0.5 seconds.
-## TIP: This allows [Upgrade]s with a [StatModifierPayload] or debuffs etc. to easily increase/decrease the player's fire rate.
-## @experimental
-@export var cooldownMillisecondsStat: Stat:
-	set(newValue):
-		if newValue != cooldownMillisecondsStat:
-			cooldownMillisecondsStat = newValue
-			self.cooldown = cooldownMillisecondsStat.value / 1000.0
-
 ## If `true`, the gun fires automatically without any player input.
 @export var autoFire: bool = false
 
@@ -74,6 +64,11 @@ var characterBodyComponent: CharacterBodyComponent:
 	get:
 		if not characterBodyComponent: characterBodyComponent = self.coComponents.get(&"CharacterBodyComponent") # Avoid crash if missing
 		return characterBodyComponent
+
+var labelComponent: LabelComponent:
+	get:
+		if not labelComponent: labelComponent = self.coComponents.get(&"LabelComponent")
+		return labelComponent
 
 func getRequiredComponents() -> Array[Script]:
 	# GODOT Dumbness: Ternary operator returns untyped array
@@ -171,7 +166,8 @@ func useAmmo() -> bool:
 	if ammo.previousValue > 0 and ammo.value <= 0:
 		if debugMode: printDebug("ammo depleted")
 		didDepleteAmmo.emit()
-		if not self.ammoDepletedMessage.is_empty(): parentEntity.displayLabel(self.ammoDepletedMessage)
+		if not self.ammoDepletedMessage.is_empty() and labelComponent:
+			labelComponent.display(self.ammoDepletedMessage)
 
 	return true
 
@@ -227,14 +223,5 @@ func createNewBullet() -> Entity:
 
 	if debugMode: printDebug(str("createNewBullet() → ", newBullet))
 	return newBullet
-
-
-## Applies the [member cooldownMillisecondsStat] to the [CooldownComponent] superclass.
-## @experimental
-func startCooldown(_overrideTime: float = self.cooldown) -> void:
-	# NOTE: Ignore `overrideTime` because it defaults to `self.cooldown` anyway
-	if cooldownMillisecondsStat: self.cooldown = cooldownMillisecondsStat.value / 1000.0
-	if debugMode: printTrace(["cooldownMillisecondsStat", cooldownMillisecondsStat.value, "cooldown", cooldown])
-	super.startCooldown(self.cooldown)
 
 #endregion

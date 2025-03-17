@@ -8,21 +8,23 @@ extends Container
 
 @export var stat: Stat
 
+@export var shouldAnimate: bool = true
+
+@export_group("Text")
+
+@export var labelColor: Color = Color.WHITE
+
 ## An optional string to write before the stat's [member Stat.displayName], e.g. "Player" to make "Player Lives:".
 @export var prefix: String
-@export var shouldAddSpaceAfterPrefix:  bool = true
+@export var shouldAddSpaceAfterPrefix:		bool = true
 
 ## Appends the stat's [member Stat.displayName] + a colon, AFTER the [member prefix] and before the value, e.g. "Lives:"
-@export var shouldShowStatDisplayName:  bool = true
+@export var shouldShowStatDisplayName:		bool = true
+@export var shouldAddColonAfterDisplayName:	bool = true
 
 ## An optional string to add after the stat's value.
 @export var suffix: String
-@export var shouldAddSpaceBeforeSuffix: bool = true
-
-## If greater than 1, then smaller values will be padded with leading 0s.
-@export var minimumDigits:   int = 2
-
-@export var shouldAnimate:   bool = true
+@export var shouldAddSpaceBeforeSuffix:		bool = true
 
 ## Affects the prefix and suffix labels, not the actual Stat value numbers.
 @export var shouldShowText:  bool = true: 
@@ -31,6 +33,15 @@ extends Container
 			shouldShowText = newValue
 			if label: updateText(false) # Update the label, without animation
 
+@export var shouldUppercase: bool = false:
+	set(newValue):
+		if newValue != shouldUppercase:
+			shouldUppercase = newValue
+			if label: label.uppercase = shouldUppercase
+
+
+@export_group("Number Value")
+
 ## Affects the actual Stat value numbers, NOT the prefix and suffix labels. Useful if showing multiple symbols/icons or "pips" to represent the value, as with [StatPips].
 @export var shouldShowValue: bool = true:
 	set(newValue):
@@ -38,17 +49,19 @@ extends Container
 			shouldShowValue = newValue
 			if label: updateText(false) # Update the label, without animation
 
-@export var shouldUppercase: bool = false:
-	set(newValue):
-		if newValue != shouldUppercase:
-			shouldUppercase = newValue
-			if label: label.uppercase = shouldUppercase
+## If greater than 1, then smaller values will be padded with leading 0s.
+@export var minimumDigits:   int = 2
 
-@export var shouldShowIcon:  bool = true:
+
+@export_group("Icon")
+
+@export var shouldShowIcon: bool = true:
 	set(newValue):
 		if newValue != shouldShowIcon:
 			shouldShowIcon = newValue
 			if icon: icon.visible = shouldShowIcon
+
+@export var iconColor: Color = Color.WHITE
 
 @export var shouldShowIconAfterText: bool = false:
 	set(newValue):
@@ -95,6 +108,8 @@ func onStat_changed() -> void:
 
 
 func updateUI(animate: bool = self.shouldAnimate) -> void:
+	label.label_settings.font_color = self.labelColor
+	icon.self_modulate = self.iconColor
 	updateText(animate)
 	updateIcon(animate)
 	self.tooltip_text = stat.description
@@ -106,8 +121,8 @@ func updateIcon(_animate: bool = self.shouldAnimate) -> void:
 
 
 func updateText(animate: bool = self.shouldAnimate) -> void:
-	self.label.text = self.buildLabelText()
-	if animate: Animations.animateNumberLabel(self.label, stat.value, stat.previousValue)
+	label.text = self.buildLabelText()
+	if animate: Animations.animateNumberLabel(label, stat.value, stat.previousValue, self.labelColor)
 
 
 ## Combines the prefix + [member Stat.displayName] + value of the stat + the suffix.
@@ -117,13 +132,14 @@ func buildLabelText() -> String:
 	var fullPrefix: String
 	var fullSuffix: String
 
-	# The pre/suf fixes
+	# The pre/suf -fixes
 
 	if shouldShowText:
-		fullPrefix = prefix + " " if shouldAddSpaceAfterPrefix  else prefix
-		fullSuffix = " " + suffix if shouldAddSpaceBeforeSuffix else suffix
+		# Add spaces only if there is any actual text, to avoid phantom spacing issues.
+		fullPrefix = prefix + " " if shouldAddSpaceAfterPrefix  and not prefix.is_empty() else prefix
+		fullSuffix = " " + suffix if shouldAddSpaceBeforeSuffix and not suffix.is_empty() else suffix
 
-		if shouldShowStatDisplayName: fullPrefix += stat.displayName + ":"
+		if shouldShowStatDisplayName: fullPrefix += stat.displayName + (":" if shouldAddColonAfterDisplayName else "")
 
 	# The value numbers
 
@@ -136,4 +152,5 @@ func buildLabelText() -> String:
 		else:
 			valueText = str(stat.value)
 	
+	# DEBUG: Debug.printTrace([fullPrefix, valueText, fullSuffix], self)
 	return str(fullPrefix, valueText, fullSuffix)
