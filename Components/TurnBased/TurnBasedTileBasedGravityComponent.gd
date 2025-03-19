@@ -56,7 +56,6 @@ func onGravityTimer_timeout() -> void:
 ## @experimental
 func checkForFall() -> bool:
 	# TODO: Don't fall while jumping
-
 	var currentPosition: Vector2i = tileBasedPositionComponent.currentCellCoordinates
 
 	# Is there a floor below us?
