@@ -10,6 +10,8 @@
 class_name DamageComponent
 extends Component
 
+# TBD: Inherit from AreaCollisionComponent or AreaContactComponent or stay standalone to improve performance and keep customizability?
+
 
 #region Parameters
 
@@ -75,7 +77,7 @@ var damageReceivingComponentsInContact: Array[DamageReceivingComponent]
 ## Returns the total damage value including the base [member damageOnCollision] +/- the [member damageModifier] [Stat] if any.
 ## @experimental
 var damageOnCollisionWithModifier: int:
-	get: return self.damageOnCollision + damageModifier.value if damageModifier else 0
+	get: return self.damageOnCollision + (damageModifier.value if damageModifier else 0) # FIXED: Wow watch those () brackets, Godot's ternary operator works in unexpected ways without them!
 
 ## Returns this component as an [Area2D] node.
 var area: Area2D:
