@@ -334,43 +334,49 @@ static func createScaledCopy(nodeToDuplicate: Node2D, copyScale: Vector2, flags:
 
 #region Tile Map Functions
 
-static func getCellGlobalPosition(tileMap: TileMapLayer, cellCoordinates: Vector2i) -> Vector2:
-	var cellPosition: Vector2 = tileMap.map_to_local(cellCoordinates)
-	var cellGlobalPosition: Vector2 = tileMap.to_global(cellPosition)
+static func getCellGlobalPosition(map: TileMapLayer, coordinates: Vector2i) -> Vector2:
+	var cellPosition: Vector2 = map.map_to_local(coordinates)
+	var cellGlobalPosition: Vector2 = map.to_global(cellPosition)
 	return cellGlobalPosition
+
+
+## For a list of custom data layer names, see [Global.TileMapCustomData].
+static func getTileData(map: TileMapLayer, coordinates: Vector2i, dataName: StringName) -> Variant:
+	var tileData: TileData = map.get_cell_tile_data(coordinates)
+	return tileData.get_custom_data(dataName) if tileData else null
 
 
 ## Sets custom data for an individual cell of a [TileMapLayerWithCustomCellData].
 ## NOTE: CELLS are different from TILES; A Tile is the resource used by a [TileSet] to paint multple cells of a [TileMapLayer.]
 ## DESIGN: This is a separate function on top of [TileMapLayerWithCustomCellData] because it may redirect to a native Godot feature in the future.
-static func setCellData(tileMap: TileMapLayerWithCustomCellData, coordinates: Vector2i, key: StringName, value: Variant) -> void:
-	tileMap.setCellData(coordinates, key, value)
+static func setCellData(map: TileMapLayerWithCustomCellData, coordinates: Vector2i, key: StringName, value: Variant) -> void:
+	map.setCellData(coordinates, key, value)
 
 
 ## Gets custom data for an individual cell of a [TileMapLayerWithCustomCellData].
 ## NOTE: CELLS are different from TILES; A Tile is the resource used by a [TileSet] to paint multple cells of a [TileMapLayer.]
 ## DESIGN: This is a separate function on top of [TileMapLayerWithCustomCellData] because it may redirect to a native Godot feature in the future.
-static func getCellData(tileMap: TileMapLayerWithCustomCellData, coordinates: Vector2i, key: StringName) -> Variant:
-	return tileMap.getCellData(coordinates, key)
+static func getCellData(map: TileMapLayerWithCustomCellData, coordinates: Vector2i, key: StringName) -> Variant:
+	return map.getCellData(coordinates, key)
 
 
 ## Uses a custom data structure to mark individual [TileMap] cells (not tiles) as occupied or unoccupied by an [Entity].
-static func setCellOccupancy(tileMap: TileMapLayerWithCustomCellData, coordinates: Vector2i, isOccupied: bool, occupant: Entity) -> void:
-	tileMap.setCellData(coordinates, Global.TileMapCustomData.isOccupied, isOccupied)
-	tileMap.setCellData(coordinates, Global.TileMapCustomData.occupant, occupant if isOccupied else null)
+static func setCellOccupancy(map: TileMapLayerWithCustomCellData, coordinates: Vector2i, isOccupied: bool, occupant: Entity) -> void:
+	map.setCellData(coordinates, Global.TileMapCustomData.isOccupied, isOccupied)
+	map.setCellData(coordinates, Global.TileMapCustomData.occupant, occupant if isOccupied else null)
 
 
 ## Checks if the specified tile is vacant by examining the custom tile/cell data for flags such as [const Global.TileMapCustomData.isWalkable].
-static func checkTileVacancy(tileMap: TileMapLayerWithCustomCellData, coordinates: Vector2i, ignoreEntity: Entity) -> bool:
+static func checkTileVacancy(map: TileMapLayerWithCustomCellData, coordinates: Vector2i, ignoreEntity: Entity) -> bool:
 	var isTileVacant: bool = false
 	var isCellVacant: bool = false
 
 	# First check the CELL data because it's quicker
 
-	var cellDataOccupied: Variant = tileMap.getCellData(coordinates, Global.TileMapCustomData.isOccupied) # NOTE: Should not be `bool` so it can be `null` if missing, NOT `false` if missing.
-	var cellDataOccupant: Entity  = tileMap.getCellData(coordinates, Global.TileMapCustomData.occupant)
+	var cellDataOccupied: Variant = map.getCellData(coordinates, Global.TileMapCustomData.isOccupied) # NOTE: Should not be `bool` so it can be `null` if missing, NOT `false` if missing.
+	var cellDataOccupant: Entity  = map.getCellData(coordinates, Global.TileMapCustomData.occupant)
 
-	if tileMap.debugMode: Debug.printDebug(str("checkTileVacancy() ", tileMap, " @", coordinates, " cellData[cellDataOccupied]: ", cellDataOccupied, ", occupant: ", cellDataOccupant))
+	if map.debugMode: Debug.printDebug(str("checkTileVacancy() ", map, " @", coordinates, " cellData[cellDataOccupied]: ", cellDataOccupied, ", occupant: ", cellDataOccupant))
 
 	if cellDataOccupied is bool:
 		isCellVacant = not cellDataOccupied or cellDataOccupant == ignoreEntity
@@ -381,13 +387,12 @@ static func checkTileVacancy(tileMap: TileMapLayerWithCustomCellData, coordinate
 	# If there is an occupant, no need to check the Tile data, just scram
 	if not isCellVacant: return false
 
-
 	# Then check the TILE data
 
 	# NOTE: DESIGN: Missing values should be considered as `true` to assist with quick prototyping
 	# TODO: Check all this in a more elegant way
 
-	var tileData: 	TileData = tileMap.get_cell_tile_data(coordinates)
+	var tileData: 	TileData = map.get_cell_tile_data(coordinates)
 	var isWalkable:	Variant
 	var isBlocked:	Variant
 
@@ -395,7 +400,7 @@ static func checkTileVacancy(tileMap: TileMapLayerWithCustomCellData, coordinate
 		isWalkable = tileData.get_custom_data(Global.TileMapCustomData.isWalkable)
 		isBlocked  = tileData.get_custom_data(Global.TileMapCustomData.isBlocked)
 
-	if tileMap.debugMode: Debug.printDebug(str("tileData[isWalkable]: ", isWalkable, ", [isBlocked]: ", isBlocked))
+	if map.debugMode: Debug.printDebug(str("tileData[isWalkable]: ", isWalkable, ", [isBlocked]: ", isBlocked))
 
 	# If there is no data, assume the tile is always vacant.
 	isTileVacant = (isWalkable or isWalkable == null) and (not isBlocked or isWalkable == null)
@@ -404,17 +409,17 @@ static func checkTileVacancy(tileMap: TileMapLayerWithCustomCellData, coordinate
 
 
 ## Verifies that the given coordinates are within the specified [TileMapLayer]'s grid.
-static func checkTileMapBounds(tileMap: TileMapLayer, coordinates: Vector2i) -> bool:
-	var mapRect: Rect2i = tileMap.get_used_rect()
+static func checkTileMapBounds(map: TileMapLayer, coordinates: Vector2i) -> bool:
+	var mapRect: Rect2i = map.get_used_rect()
 	return mapRect.has_point(coordinates)
 
 
 ## Checks for a collision between a [TileMapLayer] and physics body at the specified tile coordinates.
 ## ALERT: Will ALWAYS return `true`. Currently there seems to be no way to easily check this in Godot yet.
 ## @experimental
-static func checkTileCollision(tileMap: TileMapLayer, _body: PhysicsBody2D, _coordinates: Vector2i) -> bool:
+static func checkTileCollision(map: TileMapLayer, _body: PhysicsBody2D, _coordinates: Vector2i) -> bool:
 	# If the TileMap or its collisions are disabled, then the tile is always available.
-	if not tileMap.enabled or not tileMap.collision_enabled: return true
+	if not map.enabled or not map.collision_enabled: return true
 
 	return true # HACK: TODO: Implement
 
@@ -440,34 +445,66 @@ static func convertCoordinatesBetweenTileMaps(sourceMap: TileMapLayer, cellCoord
 	return cellCoordinatesInDestinationMap
 
 
+## Damages a [TileMapLayer] Cell if it is [member Global.TileMapCustomData.isDestructible].
+## Returns `true` if the Cell was damaged.
+static func damageTileMapCell(map: TileMapLayer, coordinates: Vector2i) -> bool:
+	# PERFORMANCE: Do not call Tools.getTileData() to reduce calls
+	var tileData: TileData = map.get_cell_tile_data(coordinates)
+	if tileData:
+		var isDestructible: bool = tileData.get_custom_data(Global.TileMapCustomData.isDestructible)
+		if  isDestructible:
+			var nextTileOnDamage: Vector2i = tileData.get_custom_data(Global.TileMapCustomData.nextTileOnDamage)
+			if nextTileOnDamage and nextTileOnDamage.x > 0 and nextTileOnDamage.x >= 0: # Negative coordinates are invalid or mean "destroy on damage"
+				map.set_cell(coordinates, 0, nextTileOnDamage)
+			else: map.erase_cell(coordinates)
+			return true
+	
+	return false
+
+
+## Sets all the Cells in the specified [TileMapLayer] region to random Tiles from the specified coordinates in the Map's [TileSet].
+## The [param modificationChance] must be between 0…1 and is rolled for Cell to determine whether it will be modified.
+static func randomizeTileMapCells(map: TileMapLayer, cellRegionStart: Vector2i, cellRegionEnd: Vector2i, tileCoordinatesMin: Vector2i, tileCoordinatesMax: Vector2i, modificationChance: float) -> void:
+	# TODO: Validate parameters and sizes
+	
+	var randomTile: Vector2i
+
+	# NOTE: +1 to range() end to make the bounds inclusive
+	for y in range(cellRegionStart.y, cellRegionEnd.y + 1):
+		for x in range(cellRegionStart.x, cellRegionEnd.x + 1):
+			if is_equal_approx(modificationChance, 1.0) or randf() < modificationChance: # TBD: Should this be an integer?
+				randomTile = Vector2i(randi_range(tileCoordinatesMin.x, tileCoordinatesMax.x), randi_range(tileCoordinatesMin.y, tileCoordinatesMax.y))
+				map.set_cell(Vector2i(x, y), 0, randomTile)
+
+
 ## Creates instance copies of the specified Scene and places them in the TileMap's cells, each at a unique position in the grid.
 ## Returns a Dictionary of the nodes that were created, with their cell coordinates as the keys.
-static func populateTileMap(tileMap: TileMapLayer, sceneToCopy: PackedScene, numberOfCopies: int, parentOverride: Node = null, groupToAddTo: StringName = &"") -> Dictionary[Vector2i, Node2D]:
+static func populateTileMap(map: TileMapLayer, sceneToCopy: PackedScene, numberOfCopies: int, parentOverride: Node = null, groupToAddTo: StringName = &"") -> Dictionary[Vector2i, Node2D]:
 	# TODO: FIXME: Handle negative cell coordinates
 	# TBD: Add option for range of allowed cell coordinates instead of using the entire TileMap?
 
 	# Validation
 
 	if not sceneToCopy:
-		Debug.printWarning("No sceneToCopy specified", str(tileMap))
+		Debug.printWarning("No sceneToCopy specified", str(map))
 		return {}
 
-	var mapRect: Rect2i = tileMap.get_used_rect()
+	var mapRect: Rect2i = map.get_used_rect()
 
 	if not mapRect.has_area():
-		Debug.printWarning(str("tileMap has no area: ", mapRect.size), str(tileMap))
+		Debug.printWarning(str("map has no area: ", mapRect.size), str(map))
 		return {}
 
 	var totalCells: int = mapRect.size.x * mapRect.size.y
 
 	if numberOfCopies > totalCells:
-		Debug.printWarning(str("numberOfCopies: ", numberOfCopies, " > totalCells: ", totalCells), str(tileMap))
+		Debug.printWarning(str("numberOfCopies: ", numberOfCopies, " > totalCells: ", totalCells), str(map))
 		return {}
 
 	# Spawn
 
 	var nodesSpawned: Dictionary[Vector2i, Node2D]
-	var parent: Node2D = parentOverride if parentOverride else tileMap
+	var parent: Node2D = parentOverride if parentOverride else map
 
 	for count in numberOfCopies:
 		var newNode: Node2D = sceneToCopy.instantiate()
@@ -476,28 +513,28 @@ static func populateTileMap(tileMap: TileMapLayer, sceneToCopy: PackedScene, num
 		# Rect size = 1 if 1 cell, so subtract - 1
 		# TBD: A more efficient way?
 
-		var cellCoordinates: Vector2i = Vector2i(
+		var coordinates: Vector2i = Vector2i(
 			randi_range(0, mapRect.size.x - 1),
 			randi_range(0, mapRect.size.y - 1))
 
-		while(nodesSpawned.get(cellCoordinates)):
-			cellCoordinates = Vector2i(
+		while(nodesSpawned.get(coordinates)):
+			coordinates = Vector2i(
 				randi_range(0, mapRect.size.x - 1),
 				randi_range(0, mapRect.size.y - 1))
 
 		# Position
-		if parent == tileMap:
-			newNode.position = tileMap.map_to_local(cellCoordinates)
+		if parent == map:
+			newNode.position = map.map_to_local(coordinates)
 		else:
 			newNode.position = parent.to_local(
-				tileMap.to_global(
-					tileMap.map_to_local(cellCoordinates)))
+				map.to_global(
+					map.map_to_local(coordinates)))
 
 		# Add
 
 		Tools.addChildAndSetOwner(newNode, parent)
 		if not groupToAddTo.is_empty(): newNode.add_to_group(groupToAddTo, true) # persistent
-		nodesSpawned[cellCoordinates] = newNode
+		nodesSpawned[coordinates] = newNode
 
 	return nodesSpawned
 

@@ -1,27 +1,30 @@
-## Emits signals when an [Area2D], [PhysicsBody2D] or [TileMapLayer] collides with this component's [Area2D].
-## Only nodes with a [CollisionObject2D.collision_layer] that matches the [CollisionObject2D.collision_mask] of this component are added.
+## Monitors an [Area2D] and emits signals when it collides with another [Area2D], [PhysicsBody2D] or [TileMapLayer].
+## Only nodes with a [CollisionObject2D.collision_layer] matching the [CollisionObject2D.collision_mask] of this component are detected.
 ## Suitable as a base class for any component that needs to react to physics collisions.
-## TIP: For a class that maintains a list of all objects currently in physics contact, use [AreaContactComponent].
+## TIP: To maintain a list of all nodes currently in physics contact, use [AreaContactComponent]
 
 class_name AreaCollisionComponent
 extends AreaComponentBase
 
+# TODO: Disconnect signals when flags disabled
 # TBD: Use this as the base for DamageComponent etc.?
-
-# DESIGN: Do not connect signals here; specific signals should only be connected in specific subclasses when they are needed, to improve performance.
 
 
 #region Parameters
 
 ## If `false`, no new areas/bodies are reported.
-## Also effects [member Area2D.monitorable] and [member Area2D.monitoring]
+## Also effects [member Area2D.monitorable] but NOT [member Area2D.monitoring]
 ## NOTE: Does NOT affect the EXIT signals or REMOVAL of areas/bodies which leave contact with this component.
 @export var isEnabled: bool = true:
 	set(newValue):
 		if newValue != isEnabled:
 			isEnabled = newValue
 			if selfAsArea: selfAsArea.monitorable = isEnabled
-			# selfAsArea.monitoring  = isEnabled # Should be always disabled; WHY? To detect exits?
+			# selfAsArea.monitoring = isEnabled # Should be always enabled, to detect exits.
+
+@export var shouldMonitorAreas:  bool = true ## If `false` no [Area2D]s are monitored when entering or exiting.
+@export var shouldMonitorBodies: bool = true ## If `false` no [PhysicsBody2D]s or [TileMapLayer]s are monitored when entering or exiting.
+@export var shouldConnectSignalsOnReady: bool = false ## TIP: PERFORMANCE: Enable physics monitoring only needed, or connect signals in a subclass or via other scripts which depend on the events.
 
 #endregion
 
@@ -36,47 +39,52 @@ signal didExitBody(body:  Node2D) ## NOTE: Emitted AFTER [method onExit]
 
 func _ready() -> void:
 	if selfAsArea: selfAsArea.monitorable = isEnabled
-	# connectSignals() # TBD: PERFORMANCE: Should be opted-in by subclasses.
+	if shouldConnectSignalsOnReady: connectSignals()
 
 
 #region Events
 
 ## Connects collision signals like [signal Area2D.area_entered] & [signal Area2D.body_entered] etc.
-## NOTE: NOT called by the default/superclass implementation. Must be called manually by any class that `extends` [AreaCollisionComponentBase]
+## NOTE: NOT called by the default/superclass implementation. Must be called manually by any class that `extends` [AreaCollisionComponent]
 ## TIP: To connect only specific signal(s), override this method WITHOUT calling `super.connectSignals()`
 func connectSignals() -> void:
-	Tools.connectSignal(area.area_entered, self.onAreaEntered)
-	Tools.connectSignal(area.area_exited,  self.onAreaExited)
-	Tools.connectSignal(area.body_entered, self.onBodyEntered)
-	Tools.connectSignal(area.body_exited,  self.onBodyExited)
+	if shouldMonitorAreas:
+		Tools.connectSignal(area.area_entered, self.onAreaEntered)
+		Tools.connectSignal(area.area_exited,  self.onAreaExited)
+	if shouldMonitorBodies:
+		Tools.connectSignal(area.body_entered, self.onBodyEntered)
+		Tools.connectSignal(area.body_exited,  self.onBodyExited)
 
+
+# DESIGN: All functions below: Ignore collisions when the node is the parent Entity or any of its children.
+# TBD: Should removals skip the parent check?
 
 func onAreaEntered(areaEntered: Area2D) -> void:
 	if debugMode: printDebug(str("areaEntered: ", areaEntered, ", owner: ", areaEntered.owner))
-	if not isEnabled or areaEntered.owner == self or areaEntered.owner == self.parentEntity: return # Avoid running into ourselves
+	if not isEnabled or not shouldMonitorAreas or areaEntered == self.parentEntity or areaEntered.owner == self.parentEntity: return 
 	self.onCollide(areaEntered)
 	didEnterArea.emit(areaEntered)
 
 
 func onBodyEntered(bodyEntered: Node2D) -> void:
 	if debugMode: printDebug(str("bodyEntered: ", bodyEntered, ", owner: ", bodyEntered.owner))
-	if not isEnabled or bodyEntered.owner == self or bodyEntered.owner == self.parentEntity: return # Avoid running into ourselves
+	if not isEnabled or not shouldMonitorBodies or bodyEntered == self.parentEntity or bodyEntered.owner == self.parentEntity: return
 	self.onCollide(bodyEntered)
 	didEnterBody.emit(bodyEntered)
 
 
-## NOTE: This is NOT affected by `isEnabled`; areas that exit should ALWAYS be removed!
+## NOTE: This is NOT affected by [member isEnabled] but IS affected by [member shouldMonitorAreas]
 func onAreaExited(areaExited: Area2D) -> void:
 	if debugMode: printDebug(str("areaExited: ", areaExited, ", owner: ", areaExited.owner))
-	if areaExited.owner == self or areaExited.owner == self.parentEntity: return # Avoid raising a ruckus if it's just ourselves
+	if not shouldMonitorAreas or areaExited == self.parentEntity or areaExited.owner == self.parentEntity: return
 	self.onExit(areaExited)
 	didExitArea.emit(areaExited)
 
 
-## NOTE: This is NOT affected by `isEnabled`; bodies that exit should ALWAYS be removed!
+## NOTE: This is NOT affected by [member isEnabled] but IS affected by [member shouldMonitorBodies]
 func onBodyExited(bodyExited: Node2D) -> void:
 	if debugMode: printDebug(str("bodyExited: ", bodyExited, ", owner: ", bodyExited.owner))
-	if bodyExited.owner == self or bodyExited.owner == self.parentEntity: return # Avoid raising a ruckus if it's just ourselves
+	if not shouldMonitorBodies or bodyExited == self.parentEntity or bodyExited.owner == self.parentEntity: return
 	self.onExit(bodyExited)
 	didExitBody.emit(bodyExited)
 
