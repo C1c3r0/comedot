@@ -272,6 +272,15 @@ static func resetBodyVelocityIfZeroMotion(body: CharacterBody2D) -> Vector2:
 	if is_zero_approx(lastMotion.y): body.velocity.y = 0
 	return lastMotion
 
+
+## Returns the [Shape2D] from a [CollisionObject2D]-based node (such as [Area2D]) and a given "shape index"
+## @experimental
+static func getCollisionShape(node: CollisionObject2D, shapeIndex: int) -> Shape2D:
+	# What is this hell...
+	var areaShapeOwnerID: int = node.shape_find_owner(shapeIndex)
+	# UNUSED: var areaShapeOwner: CollisionShape2D = node.shape_owner_get_owner(areaShapeOwnerID)
+	return node.shape_owner_get_shape(areaShapeOwnerID, shapeIndex) # CHECK: Should it be `shapeIndex` or 0?
+
 #endregion
 
 
@@ -446,15 +455,19 @@ static func convertCoordinatesBetweenTileMaps(sourceMap: TileMapLayer, cellCoord
 
 
 ## Damages a [TileMapLayer] Cell if it is [member Global.TileMapCustomData.isDestructible].
-## Returns `true` if the Cell was damaged.
+## Changes the cell's tile to the [member Global.TileMapCustomData.nextTileOnDamage] if there is any,
+## or erases the cell if there is no "next tile" specified or both X & Y coordinates are below 0 i.e. (-1,-1)
+## Returns `true` if the cell was damaged.
+## @experimental
 static func damageTileMapCell(map: TileMapLayer, coordinates: Vector2i) -> bool:
+	# TODO: Variable health & damage
 	# PERFORMANCE: Do not call Tools.getTileData() to reduce calls
 	var tileData: TileData = map.get_cell_tile_data(coordinates)
 	if tileData:
 		var isDestructible: bool = tileData.get_custom_data(Global.TileMapCustomData.isDestructible)
 		if  isDestructible:
 			var nextTileOnDamage: Vector2i = tileData.get_custom_data(Global.TileMapCustomData.nextTileOnDamage)
-			if nextTileOnDamage and nextTileOnDamage.x > 0 and nextTileOnDamage.x >= 0: # Negative coordinates are invalid or mean "destroy on damage"
+			if nextTileOnDamage and (nextTileOnDamage.x >= 0 or nextTileOnDamage.y >= 0): # Both negative coordinates are invalid or mean "destroy on damage"
 				map.set_cell(coordinates, 0, nextTileOnDamage)
 			else: map.erase_cell(coordinates)
 			return true
@@ -720,6 +733,20 @@ static func checkResult(value: Variant) -> bool:
 	else: return false
 
 
+## Connects or reconnects a [Signal] to a [Callable] only if the connection does not already exist, to silence any annoying Godot errors about existing connections (presumably for reference counting).
+static func connectSignal(sourceSignal: Signal, targetCallable: Callable, flags: int = 0) -> int:
+	if not sourceSignal.is_connected(targetCallable):
+		return sourceSignal.connect(targetCallable, flags) # No idea what the return value is for.
+	else:
+		return 0
+
+
+## Disconnects a [Signal] from a [Callable] only if the connection actually exists, to silence any annoying Godot errors about missing connections (presumably for reference counting).
+static func disconnectSignal(sourceSignal: Signal, targetCallable: Callable) -> void:
+	if sourceSignal.is_connected(targetCallable):
+		sourceSignal.disconnect(targetCallable)
+
+
 ## Stops a [Timer] and emits its [signal Timer.timeout] signal.
 ## WARNING: This may cause bugs, especially when multiple objects are using `await` to wait for a Timer.
 ## Returns: The leftover time before the timer was stopped. WARNING: May not be accurate!
@@ -744,18 +771,20 @@ static func findMethodInScript(script: Script, methodName: StringName) -> bool: 
 	return false
 
 
-## Connects or reconnects a [Signal] to a [Callable] only if the connection does not already exist, to silence any annoying Godot errors about existing connections (presumably for reference counting).
-static func connectSignal(sourceSignal: Signal, targetCallable: Callable, flags: int = 0) -> int:
-	if not sourceSignal.is_connected(targetCallable):
-		return sourceSignal.connect(targetCallable, flags) # No idea what the return value is for.
-	else:
-		return 0
+## Searches for a [param value] in an [param options] array and if found, returns the next item from the list.
+## If [param value] is the last member of the array, then the array's first item is returned.
+## If there is only 1 item in the array, then the same value is returned, or `null` if [param value] is not found.
+## TIP: May be used to cycle through a list of possible options, such as [42, 69, 420, 666]
+## WARNING: The cycle may get "stuck" if there are 2 or more identical values in the list: [a, b, b, c] will always only return the 2nd `b`
+static func cycleThroughList(value: Variant, list: Array[Variant]) -> Variant:
+	if not value or list.is_empty(): return null
 
+	var index: int = list.find(value)
 
-## Disconnects a [Signal] from a [Callable] only if the connection actually exists, to silence any annoying Godot errors about missing connections (presumably for reference counting).
-static func disconnectSignal(sourceSignal: Signal, targetCallable: Callable) -> void:
-	if sourceSignal.is_connected(targetCallable):
-		sourceSignal.disconnect(targetCallable)
+	if index >= 0: # -1 means value not found.
+		if list.size() == 1: return value
+		else: return list[index+1] if index < list.size()-1 else list[0] # Wrap around if at the end of the array.
+	else: return null
 
 
 ## Returns a copy of a number wrapped around to the [param minimum] or [param maximum] value if it exceeds or goes below either limit (inclusive).

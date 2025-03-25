@@ -11,14 +11,6 @@ extends Node2D # An "entity" would always have a visual presence, so it cannot b
 
 #region Parameters
 
-## If `false`, suppresses log messages from this entity and its child [Component]s.
-## NOTE: Does NOT affect warnings and errors!
-@export var isLoggingEnabled: bool = true
-
-## Enables more detailed debugging information for this entity, such as verbose log messages. Subclasses may add their own information or may not respect this flag.
-## NOTE: Even though [method printDebug] also checks this flag, this flag should be checked before calls to `printDebug()` with functions such as `str()` that might reduce performance.
-@export var debugMode: bool = false
-
 # PERFORMANCE: Not using `get` for the properties below to avoid extra calls on each access etc.
 # Do not initialize these properties until they are needed, or it may slow performance when lots of entities are being created.
 
@@ -97,7 +89,7 @@ func _process(_delta: float) -> void:
 	# Clear the list of functions that are supposed to be called once per frame,
 	# so they can be called again in the next frame.
 	# TBD: Assess performance impact
-	if not functionsAlreadyCalledOnceThisFrame.is_empty(): 
+	if not functionsAlreadyCalledOnceThisFrame.is_empty():
 		functionsAlreadyCalledOnceThisFrame.clear()
 	self.set_process(false) # No need to check every frame again. CHECK: Does this mess up anything unexpected?
 
@@ -183,7 +175,7 @@ func unregisterComponent(componentToRemove: Component) -> bool:
 
 	# Does the dictionary have a component of the same type?
 	# NOTE: Make sure the component in the dictionary which matches the same type, is also the same INSTANCE that has been requested to be removed.
-	
+
 	var existingComponent: Component = self.components.get(componentType)
 
 	if existingComponent == null:
@@ -384,7 +376,7 @@ func removeChildrenOfType(type: Variant, shouldFree: bool = true) -> int: # TODO
 func getSprite() -> Node2D:
 	if self.sprite == null:
 		self.sprite = self.findFirstChildOfAnyTypes([AnimatedSprite2D, Sprite2D])
-		
+
 		if self.sprite == self: printLog("getSprite(): self")
 		else: printLog(str("getSprite(): ", sprite))
 
@@ -416,7 +408,7 @@ func getArea() -> Area2D:
 ## The body may be this [Entity] node itself, or the first matching child node.
 func getBody() -> CharacterBody2D:
 	if self.body == null:
-		
+
 		# First, is the entity itself a [CharacterBody2D]?
 		# PERFORMANCE: Handle this here before calling Tools.gd
 		var selfAsBody: CharacterBody2D = get_node(".") as CharacterBody2D # HACK: Find better way to cast self?
@@ -453,6 +445,17 @@ func callOnceThisFrame(function: Callable, arguments: Array = []) -> void:
 
 
 #region Logging
+
+@export_group("Debugging")
+
+## If `false`, suppresses log messages from this entity and its child [Component]s.
+## NOTE: Does NOT affect warnings and errors!
+@export var isLoggingEnabled: bool = true
+
+## Enables more detailed debugging information for this entity, such as verbose log messages. Subclasses may add their own information or may not respect this flag.
+## NOTE: Even though [method printDebug] also checks this flag, this flag should be checked before calls to `printDebug()` with functions such as `str()` that might reduce performance.
+@export var debugMode: bool = false
+
 
 var logName: String: # Static assignment would set the property before the `name` is set.
 	# Entities just need to show their name as they're almost always the same type/eclass.
@@ -524,6 +527,6 @@ func printChange(variableName: String, previousValue: Variant, newValue: Variant
 # 			print(str(logName, " ", callerFunction, ": velocity ", previousVelocity, " → ", value))
 
 # 	# Access normally
-# 	return false 
+# 	return false
 
 #endregion

@@ -104,10 +104,10 @@ func checkRequiredComponents() -> bool:
 ## otherwise if [member shouldCheckGrandparentsForEntity] then all grandparents will be searched until an Entity is found.
 func validateParent() -> void:
 	# Initialization Order: 1: This seems to be called before any other methods, via the notification, at least when creating a new instance e.g. by a GunComponent
-	
+
 	var newParent: Node = self.get_parent()
 	if debugMode: printDebug(str("validateParent(): ", newParent))
-	
+
 	# If the parent node is not an Entity, print a warning if needed
 	if not is_instance_of(newParent, Entity):
 		var message: String = str("validateParent(): Parent node is not an Entity: ", newParent, " ／ This may prevent sibling components from finding this component.")
@@ -119,11 +119,11 @@ func validateParent() -> void:
 
 		if newParent is Entity: # If our parent is an Entity, all's well and good in the world.
 			self.registerEntity(newParent)
-		
+
 		# If our immediate parent node is not an Entity, should we search up the scene tree hierarchy for an Entity to adopt this Component?
 		elif shouldCheckGrandparentsForEntity and not allowNonEntityParent:
 			var grandparentEntity: Entity = self.findParentEntity(true)
-			if grandparentEntity: 
+			if grandparentEntity:
 				self.registerEntity(grandparentEntity)
 
 	else: # Do we already have an Entity?
@@ -139,7 +139,7 @@ func validateParent() -> void:
 ## Called when the node enters the scene tree for the first time.
 func _enter_tree() -> void:
 	# Initialization Order: 2: After Entity._enter_tree(), before Entity.childEnteredTree()
-	
+
 	self.add_to_group(Global.Groups.components, true) # persistent
 
 	# Find which Entity this Component belongs to, if not already set.
@@ -175,7 +175,7 @@ func findParentEntity(checkGrandparents: bool = self.shouldCheckGrandparentsForE
 		return parentOrGrandparent
 	elif not allowNonEntityParent:
 		printWarning(str("findParentEntity() found no Entity! checkGrandparents: ", checkGrandparents))
-	
+
 	return null
 
 
@@ -206,6 +206,7 @@ func requestDeletion() -> bool:
 	return true
 
 
+## Returns `true` if the parent [Entity] agrees to [method Entity.requestDeletion] or if there is no [member parentEntity].
 func requestDeletionOfParentEntity() -> bool:
 	if parentEntity:
 		if debugMode: printDebug(str("requestDeletionOfParentEntity(): ", parentEntity.logName))
@@ -296,15 +297,23 @@ func removeSiblingComponentsOfSameType() -> int:
 
 #region Logging
 
+@export_group("Debugging")
+
 ## Enables more detailed debugging information for this component, such as verbose log messages, visual indicators, the [member Debug.watchList] live property labels, or chart windows etc.
 ## NOTE: Subclasses may add their own information or may not respect this flag.
 ## Defaults to the entity's [member Entity.debugMode] if initially `false`.
 ## NOTE: Even though [method printDebug] also checks this flag, this flag should be checked before calls to `printDebug()` which functions such as `str()`, because that might reduce performance.
-@export var debugMode: bool
+@export var debugMode:		bool
+
+## If `true`, all calls to [method Component.printDebug] are forwarded to [method Debug.printTrace] which includes a list of the recent function calls and a highlighted color.
+## This may help with quickly tracking a specific issue in specific components.
+## NOTE: Suppresses `debugMode = false` i.e. [method printDebug] is always printed.
+@export var debugModeTrace:	bool
+
 
 ## Defaults to the entity's [member Entity.isLoggingEnabled] if initially `false`.
 ## NOTE: Does NOT affect warnings and errors!
-var isLoggingEnabled: bool
+var isLoggingEnabled:		bool
 
 var logName: String: # NOTE: This is a dynamic property because direct assignment would set the value before the `name` is set.
 	get: return "􀥭 " + self.name
@@ -313,6 +322,10 @@ var logName: String: # NOTE: This is a dynamic property because direct assignmen
 var logFullName: String:
 	get: return str("􀥭 ", self, ":", self.get_script().get_global_name())
 
+# [member Component.logName] + [member Entity.logName]
+var logNameWithEntity: String:
+	get: return self.logName + ((" " + parentEntity.logName) if parentEntity else "")
+
 
 func printLog(message: String = "", object: Variant = self.logName) -> void:
 	if not isLoggingEnabled: return
@@ -320,11 +333,12 @@ func printLog(message: String = "", object: Variant = self.logName) -> void:
 
 
 ## Affected by [member debugMode], but NOT affected by [member isLoggingEnabled].
+## NOTE: If [member debugModeTrace] is on, then [method Debug.printTrace] is ALWAYS called even if debugMode is off.
 ## TIP: Even though this method checks for [member debugMode], check for that flag before calling [method printDebug] to avoid unnecessary function calls like `str()` and improve performance.
 func printDebug(message: String = "") -> void:
 	# DESIGN: isLoggingEnabled is not respected for this method because we often need to disable common "bookkeeping" logs such as creation/destruction but we need debugging info when developing new features.
-	if not debugMode: return
-	Debug.printDebug(message, logName, "cyan")
+	if debugModeTrace: Debug.printTrace([message], self.logNameWithEntity, 3) # Start further from the call stack to skip this method # TBD: Split into array by ", " for the common usage case?
+	elif debugMode: Debug.printDebug(message, logName, "cyan")
 
 
 ## Calls [method Debug.printWarning]
@@ -343,8 +357,7 @@ func printError(message: String = "") -> void:
 ## TIP: Helpful for quick/temporary debugging of bugs currently under attention.
 ## Affected by [member debugMode] and only printed in debug builds.
 func printTrace(values: Array[Variant] = []) -> void:
-	if self is InjectorComponent or self is DamageOverTimeComponent:
-		Debug.printTrace(values, self, 3)
+	Debug.printTrace(values, self.logNameWithEntity, 3) # Start further from the call stack to skip this method
 
 
 ## Logs an entry showing a variable's previous and new values, IF there is a change and [member debugMode].

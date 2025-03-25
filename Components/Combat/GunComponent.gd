@@ -39,8 +39,18 @@ extends CooldownComponent
 ## The adjusted position in relation to the [member bulletEmitter] where newly spawned bullets are placed. (0,0) is the position of the emitter.
 @export var bulletPositionOffset: Vector2
 
+## An optional parent node for new bullets.
+## DEFAULT: If omitted, then bullets are added to the Entity's parent if the [member bulletEmitter] is a child of this [GunComponent], otherwise the emitter's parent node is used.
+@export var bulletParentOverride: Node
+
 ## The text to display via the Entity's [LabelComponent] when the [member ammo] [Stat] reaches 0 after firing.
 @export var ammoDepletedMessage: String = "AMMO DEPLETED"
+
+@export var isPlayerControlled: bool = true: ## Accept player input? Disable for AI-controlled enemies.
+	set(newValue):
+		if newValue != isPlayerControlled:
+			isPlayerControlled = newValue
+			self.set_process_unhandled_input(isPlayerControlled)
 
 @export var isEnabled: bool = true
 
@@ -88,7 +98,7 @@ func _unhandled_input(_event: InputEvent) -> void:
 	# check the [member Control.mouse_filter] property of any overlaying nodes,
 	# and set it to `MOUSE_FILTER_PASS` or `MOUSE_FILTER_IGNORE`.
 
-	if not isEnabled or autoFire: return
+	if not isEnabled or not isPlayerControlled or autoFire: return
 
 	wasFireActionJustPressed = Input.is_action_just_pressed(GlobalInput.Actions.fire)
 	isFireActionPressed = Input.is_action_pressed(GlobalInput.Actions.fire)
@@ -132,12 +142,16 @@ func fire(ignoreCooldown: bool = false) -> Entity:
 	# Add the bullet to the scene
 	# PERFORMANCE: Not using Tools.addChildAndSetOwner() to avoid a large amount of function calls if many bullets are fired each frame.
 
-	# If the default internal emitter is used, then this component's entity's parent should be the bullet's parent.
-	if bulletEmitter == %BulletEmitter or bulletEmitter.get_parent() == self:
-		self.parentEntity.get_parent().add_child(newBullet, false) # not force_readable_name (for performance?)
+	# If there is no parent specified and the default internal emitter is used, then this component's entity's parent should be the bullet's parent.
+	# PERFORMANCE: add_child() must not force_readable_name (which is very slow according to Godot docs)
+	if bulletParentOverride:
+		bulletParentOverride.add_child(newBullet, false)
+	elif bulletEmitter == %BulletEmitter or bulletEmitter.get_parent() == self:
+		self.parentEntity.get_parent().add_child(newBullet, false)
 	else:
-		bulletEmitter.get_parent().add_child(newBullet, false) # not force_readable_name (for performance?)
+		bulletEmitter.get_parent().add_child(newBullet, false)
 
+	if debugMode: printDebug(str("fire(): newBullet.parent: ", newBullet.get_parent()))
 	newBullet.owner = newBullet.get_parent() # For persistence to a [PackedScene] for save/load. CHECK: Is this necessary or will it reduce performance?
 
 	didFire.emit(newBullet)
