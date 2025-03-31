@@ -104,7 +104,6 @@ func checkRequiredComponents() -> bool:
 ## otherwise if [member shouldCheckGrandparentsForEntity] then all grandparents will be searched until an Entity is found.
 func validateParent() -> void:
 	# Initialization Order: 1: This seems to be called before any other methods, via the notification, at least when creating a new instance e.g. by a GunComponent
-
 	var newParent: Node = self.get_parent()
 	if debugMode: printDebug(str("validateParent(): ", newParent))
 
@@ -116,7 +115,6 @@ func validateParent() -> void:
 		else: printWarning(message)
 
 	if not parentEntity: # Are we a new Component [or] not owned by an Entity?
-
 		if newParent is Entity: # If our parent is an Entity, all's well and good in the world.
 			self.registerEntity(newParent)
 
@@ -127,7 +125,6 @@ func validateParent() -> void:
 				self.registerEntity(grandparentEntity)
 
 	else: # Do we already have an Entity?
-
 		if parentEntity == newParent:
 			# Warn because why are this initialization method being called again?
 			printWarning(str("validateParent() called again for parentEntity that is already set: ", parentEntity))
@@ -139,7 +136,6 @@ func validateParent() -> void:
 ## Called when the node enters the scene tree for the first time.
 func _enter_tree() -> void:
 	# Initialization Order: 2: After Entity._enter_tree(), before Entity.childEnteredTree()
-
 	self.add_to_group(Global.Groups.components, true) # persistent
 
 	# Find which Entity this Component belongs to, if not already set.
@@ -246,9 +242,9 @@ func _exit_tree() -> void:
 
 func _notification(what: int) -> void:
 	match what:
-		NOTIFICATION_PARENTED:   validateParent()	# Received when a node is set as the child of another node,  not necessarily when the node enters the SceneTree.
+		NOTIFICATION_PARENTED: validateParent() # Received when a node is set as the child of another node,  not necessarily when the node enters the SceneTree.
 		NOTIFICATION_UNPARENTED: unregisterEntity() # Received when a parent calls remove_child() on a child node, not necessarily when the node exit the SceneTree.
-		NOTIFICATION_PREDELETE:  if isLoggingEnabled: printLog("[color=brown]􀆄 PreDelete") # NOTE: Cannot print [parentEntity] here because it will always be `null` (?)
+		NOTIFICATION_PREDELETE: if isLoggingEnabled: printLog("[color=brown]􀆄 PreDelete") # NOTE: Cannot print [parentEntity] here because it will always be `null` (?)
 
 #endregion
 
@@ -265,7 +261,6 @@ func findCoComponent(type: Script, includeSubclasses: bool = true) -> Component:
 	var coComponent: Component = self.coComponents.get(type.get_global_name())
 
 	if not coComponent:
-
 		if includeSubclasses:
 			coComponent = parentEntity.findFirstComponentSubclass(type)
 			printDebug(str("Searching for subclass of ", type, " in parentEntity: ", parentEntity, " — Found: ", coComponent))
@@ -295,6 +290,35 @@ func removeSiblingComponentsOfSameType() -> int:
 #endregion
 
 
+#region Static Methods
+
+## Attempts to cast any Node as a Component, since the `Component.gd` script may be attached to any Node.
+## If the [param node] is not an component but the node's parent/grandparent is an Entity, the Entity is searched to find the matching [param componentType] if [param findInParentEntity].
+## @experimental
+static func castOrFindComponent(node: Node, componentType: GDScript, findInParentEntity: bool = true) -> Component:
+	# First, try casting the node itself.
+	var component: Component = node.get_node(^".") as Component # HACK: Find better way to cast self?
+
+	if not component:
+		Debug.printDebug(str("Cannot cast ", node, " as ", componentType.get_global_name()), "Component.castOrFindComponent()")
+
+		# Try to see if the node's grand/parent is an Entity
+		if findInParentEntity:
+			var nodeParent: Entity = Tools.findFirstParentOfType(node, Entity)
+			if nodeParent:
+				component = nodeParent.components.get(componentType.get_global_name())
+				if not component:
+					Debug.printDebug(str("node parent ", nodeParent, " has no ", componentType.get_global_name()), "Component.castOrFindComponent()")
+					return null
+			else:
+				Debug.printDebug(str("node parent is not an Entity: ", nodeParent), "Component.castOrFindComponent()")
+				return null
+
+	return component
+
+#endregion
+
+
 #region Logging
 
 @export_group("Debugging")
@@ -303,17 +327,17 @@ func removeSiblingComponentsOfSameType() -> int:
 ## NOTE: Subclasses may add their own information or may not respect this flag.
 ## Defaults to the entity's [member Entity.debugMode] if initially `false`.
 ## NOTE: Even though [method printDebug] also checks this flag, this flag should be checked before calls to `printDebug()` which functions such as `str()`, because that might reduce performance.
-@export var debugMode:		bool
+@export var debugMode: bool
 
 ## If `true`, all calls to [method Component.printDebug] are forwarded to [method Debug.printTrace] which includes a list of the recent function calls and a highlighted color.
 ## This may help with quickly tracking a specific issue in specific components.
 ## NOTE: Suppresses `debugMode = false` i.e. [method printDebug] is always printed.
-@export var debugModeTrace:	bool
+@export var debugModeTrace: bool
 
 
 ## Defaults to the entity's [member Entity.isLoggingEnabled] if initially `false`.
 ## NOTE: Does NOT affect warnings and errors!
-var isLoggingEnabled:		bool
+var isLoggingEnabled: bool
 
 var logName: String: # NOTE: This is a dynamic property because direct assignment would set the value before the `name` is set.
 	get: return "􀥭 " + self.name
@@ -337,7 +361,7 @@ func printLog(message: String = "", object: Variant = self.logName) -> void:
 ## TIP: Even though this method checks for [member debugMode], check for that flag before calling [method printDebug] to avoid unnecessary function calls like `str()` and improve performance.
 func printDebug(message: String = "") -> void:
 	# DESIGN: isLoggingEnabled is not respected for this method because we often need to disable common "bookkeeping" logs such as creation/destruction but we need debugging info when developing new features.
-	if debugModeTrace: Debug.printTrace([message], self.logNameWithEntity, 3) # Start further from the call stack to skip this method # TBD: Split into array by ", " for the common usage case?
+	if debugModeTrace: Debug.printTrace(message.split(", "), self.logNameWithEntity, 3) # Start further from the call stack to skip this method # TBD: Split into array by ", " for the common usage case?
 	elif debugMode: Debug.printDebug(message, logName, "cyan")
 
 

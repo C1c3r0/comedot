@@ -9,11 +9,11 @@ extends AreaCollisionComponent
 
 
 #region Parameters
-@export var shouldRemoveEntity: bool		  ## Removes the entity itself. NOTE: Prevents the addition or removal of components or nodes.
-@export var nodesToRemove:		Array[Node]   ## Occurs BEFORE [member componentsToRemove]. Overridden by [member shouldRemoveEntity]
+@export var shouldRemoveEntity: bool ## Removes the entity itself. NOTE: Prevents the addition or removal of components or nodes.
+@export var nodesToRemove: Array[Node] ## Occurs BEFORE [member componentsToRemove]. Overridden by [member shouldRemoveEntity]
 @export var componentsToRemove: Array[Script] ## Occurs BEFORE [member componentsToCreate] and AFTER [member nodesToRemove]. Overridden by [member shouldRemoveEntity]
 @export var componentsToCreate: Array[Script] ## Occurs AFTER [member componentsToRemove]. Overridden by [member shouldRemoveEntity]
-@export var payload:			Payload		  ## An optional [Payload] to execute. The `source` is this component's parent [Entity] and the `target` is the colliding Node. Occurs last.
+@export var payload: Payload ## An optional [Payload] to execute. The `source` is this component's parent [Entity] and the `target` is the colliding Node. Occurs last.
 #endregion
 
 
@@ -30,7 +30,7 @@ func _ready() -> void:
 func onCollide(collidingNode: Node2D) -> void:
 	if not isEnabled: return
 	if debugMode: printDebug(str("onCollide() area: ", self.area, ", collidingNode: ", collidingNode, ", shouldRemoveEntity: ", shouldRemoveEntity, ", nodesToRemove: ", nodesToRemove, ", componentsToRemove: ", componentsToRemove, ", componentsToCreate: ", componentsToCreate, ", payload: ", payload))
-	
+
 	super.onCollide(collidingNode)
 
 	if shouldRemoveEntity:
@@ -40,14 +40,15 @@ func onCollide(collidingNode: Node2D) -> void:
 	else:
 		var entity: Entity = self.parentEntity # NOTE: Save the parent Entity in case THIS component ITSELF is among the removed nodes! Which invalidates parentEntity
 
-		# Check for valid parents to avoid crashes if we collided TOO soon :')
+		# NOTE: Check for valid nodes/parents to avoid crashes if we collided TOO soon :')
 
 		for node in nodesToRemove:
-			if is_instance_valid(node.get_parent()): node.get_parent().remove_child(node)
-			node.queue_free() # TBD: Should this be optional?
-		
+			if is_instance_valid(node):
+				if is_instance_valid(node.get_parent()): node.get_parent().remove_child(node)
+				node.queue_free() # TBD: Should this be optional?
+
 		if is_instance_valid(entity):
 			entity.removeComponents(componentsToRemove)
 			didAddComponents.emit(entity.createNewComponents(componentsToCreate))
-		
+
 		if payload: payload.execute(self.parentEntity, collidingNode)
