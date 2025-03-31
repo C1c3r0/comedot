@@ -10,7 +10,7 @@
 [ext_resource type="StyleBox" uid="uid://cgvwymdjafenq" path="res://Assets/Themes/ScrollBar/ScrollBar Grabber Pressed.tres" id="8_28ssp"]
 [ext_resource type="StyleBox" uid="uid://c5fqq43pdmjg2" path="res://Assets/Themes/ScrollBar/ScrollBar.tres" id="9_450rk"]
 [ext_resource type="StyleBox" uid="uid://dt6n1qgf6fcle" path="res://Assets/Themes/StyleBoxEmpty.tres" id="10_nylrf"]
-[ext_resource type="FontFile" uid="uid://dgq04o762nocm" path="res://Game/UI/Fonts/Futuropolis/AirstreamFuturopolisRegul-DPrD.ttf" id="11_nylrf"]
+[ext_resource type="FontFile" path="res://Game/UI/Fonts/Futuropolis/AirstreamFuturopolisRegul-DPrD.ttf" id="11_nylrf"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_7gpu3"]
 bg_color = Color(1, 1, 1, 0)
