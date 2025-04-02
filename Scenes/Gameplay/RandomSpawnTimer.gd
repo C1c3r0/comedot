@@ -15,14 +15,14 @@ extends SpawnTimer
 @export_file("*.tscn") var randomScenesList: Array[String]
 
 ## The chance in percentage for an instance to be created whenever the Timer counts down.
-@export_range(0, 100, 1, "suffix:%") var spawnChance: int = 100
+@export_range(0, 100, 1, "suffix:%") var spawnChance: int = 100 # TBD: Should this be a float 0.0 to 1.0? or will that cause float comparison effery?
 
 #endregion
 
 
 func onTimeout() -> void:
 	if spawnChance >= 100 \
-	or randi_range(1, 100) <= spawnChance: # i.e. if the chance is 10%, then any number from 1-10 should succeed.
+	or randi_range(1, 100) <= spawnChance: # i.e. if the chance is 10%, then any number from 1-10 should succeed. If chance is 0 then never succeed.
 		if debugMode: Debug.printDebug(str("onTimeout() roll >= spawnChance: ", spawnChance), self)
 
 		# Choose a random scene

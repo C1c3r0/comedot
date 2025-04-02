@@ -2,7 +2,7 @@
 ## Does NOT receive player control input, or perform path-finding or any other validation logic
 ## except checking the tile map bounds and tile collision.
 ## NOTE: To provide player input, use [TileBasedControlComponent].
-## Requirements: [TileMapLayerWithCustomCellData]
+## Requirements: [TileMapLayerWithCellData]
 
 class_name TileBasedPositionComponent
 extends Component
@@ -18,11 +18,23 @@ extends Component
 
 #region Parameters
 
-@export var tileMap: TileMapLayerWithCustomCellData:
+@export var tileMap: TileMapLayerWithCellData:
 	set(newValue):
 		if tileMap != newValue:
 			printChange("tileMap", tileMap, newValue)
+			
+			# If we have a TileMap and are about to leave it, mark our cell as no longer occupied.
+			if tileMap and not newValue: vacateCurrentCell()
+
 			tileMap = newValue
+			if tileMap:
+				validateTileMap()
+				applyInitialCoordinates()
+
+## If `true` and [member tileMap] is `null` then the current Scene will be searched and the first [TileMapLayerWithCellData] will be used, if any.
+## WARNING: Caues bugs when dynamically moving between TileMaps or setting up new Entities.
+## @experimental
+@export var shouldSearchForTileMap: bool = false
 
 @export var setInitialCoordinatesFromEntityPosition: bool = false
 @export var initialDestinationCoordinates: Vector2i
@@ -99,15 +111,16 @@ func _ready() -> void:
 		self.willStartMovingToNewCell.connect(self.onWillStartMovingToNewTile)
 		self.didArriveAtNewCell.connect(self.onDidArriveAtNewTile)
 
-	if tileMap: # If this component was loaded dynamically at runtime, then the tileMap may be set later.
-		applyInitialCoordinates()
+	# Then the tileMap may be set later, if this component was loaded dynamically at runtime, or initialized by another script.
+	if tileMap: applyInitialCoordinates()
 	
 	updateIndicator() # Fix the visually-annoying initial snap from the default position
 	self.willRemoveFromEntity.connect(self.onWillRemoveFromEntity)
 
 
 func onWillRemoveFromEntity() -> void:
-	Tools.setCellOccupancy(tileMap, currentCellCoordinates, false, null)
+	# Set our cell as vacant before this component or entity is removed.
+	vacateCurrentCell()
 
 #endregion
 
@@ -116,16 +129,19 @@ func onWillRemoveFromEntity() -> void:
 
 ## Verifies [member tileMap].
 func validateTileMap() -> bool:
-	# TODO: If missing, try to use the first [TileMapLayerWithCustomCellData] found in the current scene, if any?
+	# TODO: If missing, try to use the first [TileMapLayerWithCellData] found in the current scene, if any?
 
 	if not tileMap:
-		# printWarning("tileMap not specified! Searching for first TileMapLayerWithCustomCellData in current scene")
-		# tileMap = Tools.findFirstChildOfType(get_tree().current_scene, TileMapLayerWithCustomCellData) # WARNING: Caues bugs! When dynamically moving between TileMaps or setting up new entities.
-		if not tileMap: printWarning("Missing TileMapLayerWithCustomCellData")
+		if shouldSearchForTileMap:
+			if debugMode: printDebug("tileMap not specified! Searching for first TileMapLayerWithCellData in current scene…")
+			tileMap = Tools.findFirstChildOfType(get_tree().current_scene, TileMapLayerWithCellData) # WARNING: Caues bugs when dynamically moving between TileMaps or setting up new Entities.
+		
+		# Warn only in debugMode, in case the tileMap will be supplied by a different script.
+		if debugMode and not tileMap: printWarning("Missing TileMapLayerWithCellData")
 		return false
 
-	if not tileMap is TileMapLayerWithCustomCellData:
-		printWarning(str("tileMap is not TileMapLayerWithCustomCellData: ", tileMap))
+	if not tileMap is TileMapLayerWithCellData:
+		printWarning(str("tileMap is not TileMapLayerWithCellData: ", tileMap))
 		return false
 
 	return true
@@ -260,6 +276,10 @@ func cancelDestination() -> void:
 	self.destinationCellCoordinates = self.currentCellCoordinates
 	self.isMovingToNewCell = false
 
+
+func vacateCurrentCell() -> void:
+	if tileMap: Tools.setCellOccupancy(tileMap, currentCellCoordinates, false, null)
+
 #endregion
 
 
@@ -302,8 +322,12 @@ func checkForArrival() -> bool:
 
 func updateIndicator() -> void:
 	if not visualIndicator: return
-	visualIndicator.global_position = Tools.getCellGlobalPosition(tileMap, self.destinationCellCoordinates)
-	visualIndicator.visible = isMovingToNewCell
+	if tileMap:
+		visualIndicator.global_position = Tools.getCellGlobalPosition(tileMap, self.destinationCellCoordinates)
+		visualIndicator.visible = isMovingToNewCell
+	else:
+		visualIndicator.position = Vector2.ZERO # TBD: Necessary?
+		visualIndicator.visible = false
 
 #endregion
 
