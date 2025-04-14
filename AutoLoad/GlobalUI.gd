@@ -9,13 +9,15 @@ extends Node
 
 
 #region State
-var pauseOverlay: PauseOverlay
+var pauseOverlay:		PauseOverlay
+var pauseOverlayTween:	Tween
+var rectFadeTween:		Tween
 #endregion
 
 
 #region Signals
 
-signal didShowPauseOverlay
+signal didShowPauseOverlay(overlay: CanvasItem)
 signal didHidePauseOverlay
 
 # Signal Event Bus
@@ -36,11 +38,12 @@ signal actionDidChooseTarget(action:  Action, source: Entity, target: Variant) #
 #region Dependencies
 const pauseOverlayScene := preload("res://UI/PauseOverlay.tscn")
 
-@onready var navigationContainer:UINavigationContainer = %NavigationContainer ## For top-level UI
-@onready var foregroundOverlay	:CanvasLayer = %ForegroundOverlay
-@onready var animationPlayer	:AnimationPlayer = %AnimationPlayer
-@onready var pauseButton		:Button = %PauseButton
-@onready var labelsList			:TemporaryLabelList = %LabelsList
+@onready var foregroundOverlay:		CanvasLayer				= %ForegroundOverlay
+@onready var labelsList:			TemporaryLabelList		= %LabelsList
+@onready var navigationContainer:	UINavigationContainer	= %NavigationContainer ## For top-level UI
+@onready var overlayRect:			ColorRect				= %GlobalOverlayRect
+@onready var pauseOverlayRect:		ColorRect				= %PauseOverlayRect
+@onready var pauseOverlayContainer:	UINavigationContainer	= %PauseOverlayContainer
 #endregion
 
 
@@ -78,27 +81,44 @@ func setWindowSize(width: int, height: int, showLabel: bool = true) -> void:
 
 
 func showPauseVisuals(isPaused: bool) -> void:
-	if isPaused: self.fadeIn()
-	else: self.fadeOut()
+	# Avoid reanimating an existing state
+	if (isPaused and pauseOverlayContainer.visible) \
+	or (not isPaused and not pauseOverlayContainer.visible):
+		return
 
-	pauseButton.updateState()
-	pauseButton.visible = isPaused
+	# Let PauseButton.gd handle its update itself
 
 	if isPaused:
 
-		if not self.pauseOverlay:
-			self.pauseOverlay = pauseOverlayScene.instantiate() # NOTE: Create only here; not in property getter
+		if not pauseOverlay: pauseOverlay = pauseOverlayScene.instantiate() # NOTE: Create only here; not in property getter, to avoid unnecessary creation.
 
-		if pauseOverlay.get_parent() != foregroundOverlay:
-			foregroundOverlay.add_child(pauseOverlay)
-			pauseOverlay.owner = foregroundOverlay # Necessary for persistence to a [PackedScene] for save/load.
-		foregroundOverlay.move_child(pauseOverlay, -1)  # Put it above the fullscreen overlay effect.
-		pauseOverlay.visible = true # Just in case
-		didShowPauseOverlay.emit()
+		if pauseOverlay.get_parent() != pauseOverlayContainer: # Is the overlay already there?
+			pauseOverlayContainer.add_child(pauseOverlay)
+			pauseOverlay.owner = pauseOverlayContainer # Necessary for persistence to a [PackedScene] for save/load.
 
-	elif not isPaused and pauseOverlay:
-		foregroundOverlay.remove_child(pauseOverlay)
-		self.pauseOverlay = null
+		pauseOverlayContainer.move_child(pauseOverlay, -1) # Put it in front of any other children
+		# Ensure visibility just in case
+		pauseOverlay.pauseButton.visible = true
+		pauseOverlay.visible = true
+		Animations.fadeIn(pauseOverlayRect)
+		if pauseOverlayTween: pauseOverlayTween.kill()
+		pauseOverlayTween = Animations.fadeIn(pauseOverlayContainer, 0.2)
+		didShowPauseOverlay.emit(pauseOverlay)
+
+	elif not isPaused:
+
+		if pauseOverlay: pauseOverlay.pauseButton.visible = false
+
+		Animations.fadeOut(pauseOverlayRect)
+		if pauseOverlayTween: pauseOverlayTween.kill()
+		pauseOverlayTween = Animations.fadeOut(pauseOverlayContainer, 0.2)
+		await pauseOverlayTween.finished
+
+		Tools.removeAllChildren(pauseOverlayContainer)
+		pauseOverlayContainer.resetHistory()
+		if pauseOverlay:
+			pauseOverlay.queue_free() # TBD: queue_free() or save for reuse?
+			pauseOverlay = null
 		didHidePauseOverlay.emit()
 
 
@@ -109,18 +129,16 @@ func createTemporaryLabel(text: String) -> Label:
 #region Animations
 
 ## Fades in the global overlay, which may be a solid black rectangle, effectively fading OUT the actual game content.
-func fadeIn() -> void:
-	animationPlayer.play(Animations.overlayFadeIn)
-	await animationPlayer.animation_finished
+func fadeInOverlayRect() -> Tween:
+	if rectFadeTween: rectFadeTween.kill()
+	rectFadeTween = Animations.fadeIn(overlayRect)
+	return rectFadeTween
 
 
 ## Fades out the global overlay, which may be a solid black rectangle, effectively fading IN the actual game content.
-func fadeOut() -> void:
-	# Playing the fade-in animation backwards allows for smoother-looking blending from the current values,
-	# in case the fade-out happens during the previous fade-in.
-	# TODO: CHECK: Is the visibility still set correctly afterwards?
-	animationPlayer.play_backwards(Animations.overlayFadeIn)
-	#animationPlayer.play(Animations.overlayFadeOut)
-	await animationPlayer.animation_finished
+func fadeOutOverlayRect() -> Tween:
+	if rectFadeTween: rectFadeTween.kill()
+	rectFadeTween = Animations.fadeOut(overlayRect)
+	return rectFadeTween
 
 #endregion

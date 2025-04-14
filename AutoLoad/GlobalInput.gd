@@ -42,6 +42,7 @@ class Actions:
 	## Edit the Godot Project Settings' Input Map to add shortcuts for special [Actions] e.g `specialAction_dash`.
 	const specialActionPrefix := &"specialAction_" # TBD: Less ambiguous name? :')
 
+	const back			:= &"back"
 	const pause			:= &"pause"
 	const screenshot	:= &"screenshot"
 	const quickSave		:= &"quickSave"
@@ -55,12 +56,17 @@ class Actions:
 	const debugTest		:= &"debugTest"   ## Activates [TestMode]
 	const debugBreak	:= &"debugBreak"  ## Causes a debugging breakpoint.
 
+	## List of input actions to be excluded from player customization in [InputActionsList] and other control remapping UI.
+	const excludedFromCustomization: Array[StringName] = [
+		back, pause,
+		windowToggleAlwaysOnTop, windowResizeTo1080, windowResizeTo720,
+		debugWindow, debugTest, debugBreak
+		]
 
 ## Replacements for certain strings in the text representations of InputEvent control names, such as "Keyboard" instead of "Physical".
 const eventTextReplacements: Dictionary[String, String] = {
 	"Physical": "Keyboard",
 	}
-
 #endregion
 
 
@@ -83,11 +89,31 @@ func _enter_tree() -> void:
 	Debug.printAutoLoadLog("_enter_tree()")
 
 
-## Global keyboard shortcuts
-func _input(event: InputEvent) -> void:
+## Global shortcuts including gamepad etc.
+func _unhandled_input(event: InputEvent) -> void:
 	# TBD: Should we check `event` or [Input]?
-
 	if not event.is_action_type(): return
+
+	var isHandled: bool = false # Keep other scripts from eating our leftovers, e.g. prevent the Escape key for "Pause" also triggering a "Back" event or vice-versa.
+
+	# Game
+
+	if isPauseShortcutAllowed and not SceneManager.ongoingTransitionScene and Input.is_action_just_pressed(Actions.pause): # Prevent pausing during scene transitions
+		self.process_mode = Node.PROCESS_MODE_ALWAYS # TBD: HACK: Is this necessary?
+		SceneManager.togglePause()
+		isHandled = true
+	
+	if isHandled: self.get_viewport().set_input_as_handled()
+
+
+## Global keyboard shortcuts
+func _unhandled_key_input(event: InputEvent) -> void:
+	# TBD: Should we check `event` or [Input]?
+	if not event.is_action_type(): return
+
+	var isHandled: bool = false # Keep other scripts from eating our leftovers, e.g. prevent the Escape key for "Pause" also triggering a "Back" event or vice-versa.
+
+	# NOTE: Mutually-exclusive events should be handled in if/elif/else pairs/sets
 
 	# Debugging, before any other actions are handled.
 
@@ -95,14 +121,10 @@ func _input(event: InputEvent) -> void:
 		Debug.printDebug("Debug Breakpoint Input Received")
 		breakpoint # TBD: Use `breakpoint` or `assert(false)`? `assert` also adds a message but only runs in debug builds.
 		# assert(false, "Debug Breakpoint Input Received")
+		isHandled = true
 	elif Input.is_action_just_released(Actions.debugWindow):
 		Debug.toggleDebugWindow()
-
-	# Game
-
-	if isPauseShortcutAllowed and not SceneManager.ongoingTransitionScene and Input.is_action_just_pressed(Actions.pause): # Prevent pausing during scene transitions
-		self.process_mode = Node.PROCESS_MODE_ALWAYS # TBD: HACK: Is this necessary?
-		SceneManager.togglePause()
+		isHandled = true
 
 	# Window
 
@@ -111,24 +133,31 @@ func _input(event: InputEvent) -> void:
 		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_ALWAYS_ON_TOP, not isAlwaysOnTop) # `not` because it's a toggle.
 		GlobalUI.createTemporaryLabel(str("Window Always on Top: ", not isAlwaysOnTop))
 		get_viewport().set_input_as_handled() # TBD: Should we let these shortcuts affect other things?
+		isHandled = true
 
 	if Input.is_action_just_released(Actions.windowResizeTo720):
 		GlobalUI.setWindowSize(1280, 720)
 		get_viewport().set_input_as_handled() # TBD: Should we let these shortcuts affect other things?
-		
+		isHandled = true
 	elif Input.is_action_just_released(Actions.windowResizeTo1080):
 		GlobalUI.setWindowSize(1920, 1080)
 		get_viewport().set_input_as_handled() # TBD: Should we let these shortcuts affect other things?
+		isHandled = true
 
 	# Save & Load
 
 	if event.is_action_released(GlobalInput.Actions.screenshot):
 		Global.screenshot()
+		isHandled = true
 
-	if event.is_action_released(GlobalInput.Actions.quickLoad):
+	if event.is_action_released(GlobalInput.Actions.quickLoad): # TBD: Should Loading take precedence over Saving?
 		GameState.loadGame()
+		isHandled = true
 	elif event.is_action_released(GlobalInput.Actions.quickSave):
 		GameState.saveGame()
+		isHandled = true
+
+	if isHandled: self.get_viewport().set_input_as_handled()
 
 
 #region Helper Functions

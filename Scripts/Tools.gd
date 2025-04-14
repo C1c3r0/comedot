@@ -75,7 +75,7 @@ static func findFirstParentOfType(childNode: Node, type: Variant) -> Node:
 	var parent: Node = childNode.get_parent() # parentOrGrandparent
 
 	# If parent is not the matching type, get the grandparent (parent's parent) and keep searching up the tree, until we run out of parents (null).
-	while not is_instance_of(parent, type):
+	while parent != null and not is_instance_of(parent, type): # NOTE: Avoid calling get_parent() on `null`
 		parent = parent.get_parent()
 
 	return parent
@@ -479,6 +479,7 @@ static func damageTileMapCell(map: TileMapLayer, coordinates: Vector2i) -> bool:
 ## The [param modificationChance] must be between 0…1 and is rolled for Cell to determine whether it will be modified.
 static func randomizeTileMapCells(map: TileMapLayer, cellRegionStart: Vector2i, cellRegionEnd: Vector2i, tileCoordinatesMin: Vector2i, tileCoordinatesMax: Vector2i, modificationChance: float) -> void:
 	# TODO: Validate parameters and sizes
+	# NOTE: Rect2i is less intuitive because it uses width/height parameters for initialization, not direct end coordinates.
 
 	var randomTile: Vector2i
 

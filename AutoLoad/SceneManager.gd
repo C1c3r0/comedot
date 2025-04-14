@@ -46,7 +46,8 @@ signal didPushScene(scenePath:  String)
 signal willPopScene ## TIP: May be used to modify the stack before a scene is popped, for example, pushing a scene if there is none, to make sure a "Back" Button always works.
 signal didPopScene(scenePath: String)
 
-signal willSetPause(pause: bool) ## TIP: May be used to modify the visuals before the game is paused.
+signal willSetPause(pause: bool)	## TIP: May be used to modify visuals etc. before the game is paused.
+signal didSetPause(isPaused: bool)	## TIP: May be used to modify UI such as [PauseButton.gd] after the game is paused.
 #endregion
 
 
@@ -76,14 +77,16 @@ func transitionToScene(nextScene: PackedScene, pauseSceneTree: bool = true, anim
 
 	# Pause
 	sceneTree.paused = pauseSceneTree
-	if animate: await GlobalUI.fadeIn() # Fade the overlay in, fade the game out.
+	if animate: await GlobalUI.fadeInOverlayRect().finished # Fade the overlay in, fade the game out.
 
 	# Transition
 	sceneTree.change_scene_to_packed(nextScene)
+	sceneTree.paused = true # Repause just in case the new scene unpaused before we fade-in
 
 	# Unpause
-	if animate: await GlobalUI.fadeOut() # Fade the overlay out, fade the game in.
-	sceneTree.paused = false
+	await sceneTree.create_timer(0.1).timeout # A little breath before showing the next scene
+	sceneTree.paused = false # Unpause to begin the gameplay motion before the overlay fades-out for a smoother feel, instead of an abrupt movement.
+	if animate: await GlobalUI.fadeOutOverlayRect().finished # Fade the overlay out, fade the game in.
 
 	ongoingTransitionScene = null # Clear the transition tracker
 	if Debug.shouldPrintDebugLogs: Debug.printDebug(str("SceneTree.current_scene: ", sceneTree.current_scene), logName)
@@ -182,12 +185,20 @@ func popSceneFromStack(pauseSceneTree: bool = true, animate: bool = animateDefau
 
 #region Pause/Unpause
 
+func _notification(what: int) -> void:
+	match what:
+		NOTIFICATION_PAUSED, NOTIFICATION_UNPAUSED:
+			didSetPause.emit(sceneTree.paused)
+
+
 ## Sets [member SceneTree.paused] and returns the resulting paused status.
-func setPause(paused: bool) -> bool:
-	willSetPause.emit(paused)
-	sceneTree.paused = paused
+func setPause(shouldPause: bool) -> bool:
+	# TBD: Emit signal only if changing?
+	willSetPause.emit(shouldPause)
+	sceneTree.paused = shouldPause
 
 	GlobalUI.showPauseVisuals(sceneTree.paused)
+	# NOTE: Do not emit didSetPause here; let _notification() handle pause/unpause from ANY source.
 	return sceneTree.paused
 
 
