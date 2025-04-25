@@ -308,6 +308,59 @@ func removeComponents(componentTypes: Array[Script], shouldFree: bool = true) ->
 		if self.removeComponent(componentType, shouldFree): removalCount += 1
 	return removalCount
 
+
+## Moves components from this entity to another and returns an array of all components that were successfully reparented.
+func transferComponents(componentTypesToTransfer: Array[Script], newParent: Entity, keepGlobalTransform: bool = true, skipExistingComponents: bool = true) -> Array[Component]:
+	if newParent == self:
+		Debug.printWarning(str("transferComponents(): newParent is self!"))
+		return []
+
+	var transferredComponents: Array[Component]
+	var component: Component
+	
+	for type in componentTypesToTransfer:
+		component = self.getComponent(type)
+		
+		if component:
+
+			if skipExistingComponents and newParent.getComponent(type):
+				if debugMode: Debug.printDebug(str("transferComponents(): skipExistingComponents: ", component.logFullName, " already in ", newParent.logFullName))
+				continue
+
+			component.reparent(newParent, keepGlobalTransform)
+			component.owner = newParent # For persistence etc. # CHECK: Necessary?
+
+			if component.get_parent() == newParent and component.parentEntity == newParent:
+				transferredComponents.append(component)
+			else:
+				Debug.printWarning(str("transferComponents(): ", component, " could not be moved from ", self.logFullName, " to ", newParent.logFullName))
+				continue
+		else:
+			printWarning(str("transferComponents(): ", self.logFullName, " does not have ", component))
+			continue
+
+	return transferredComponents
+
+
+## Sets the `isEnabled` flag on each of the list components to its opposite or [param overrideIsEnabled] if specified.
+## Components that do not have an `isEnabled` property are skipped.
+## Returns: An array of enabled components whose `isEnabled` is `true`.
+## TIP: Example: Quickly toggle player control between different characters without adding/removing components at runtime, which reduces performance.
+func toggleComponents(componentTypes: Array[Script], overrideIsEnabled: Variant = null) -> Array[Component]:
+	var enabledComponents: Array[Component]
+	var component: Component
+	
+	for type in componentTypes:
+		component = self.getComponent(type)
+		if component and &"isEnabled" in component: # CHECK: Should it be a StringName?
+			if overrideIsEnabled != null and overrideIsEnabled is bool:
+				component.isEnabled = overrideIsEnabled
+			else:
+				component.isEnabled = not component.isEnabled
+			if component.isEnabled: enabledComponents.append(component)
+
+	return enabledComponents
+
 #endregion
 
 

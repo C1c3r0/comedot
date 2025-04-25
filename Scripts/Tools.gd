@@ -21,6 +21,10 @@ class CompassDirections: ## A list of unit vectors representing 8 compass direct
 	const southWest	:= Vector2i(-1, +1)
 	const west		:= Vector2i.LEFT
 
+## A sequence of float numbers from -1.0 to +1.0 stepped by 0.1
+## TIP: Use [method Array.pick_random] to pick a random variation from this list for colors etc.
+const sequenceNegative1toPositive1stepPoint1: Array[float] = [-1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0, +0.1, +0.2, +0.3, +0.4, +0.5, +0.6, +0.7, +0.8, +0.9, +1.0] # TBD: Better name pleawse :')
+
 #endregion
 
 
@@ -132,7 +136,25 @@ static func removeAllChildren(parent: Node) -> int:
 	return removalCount
 
 
-## Convert a path from the `./` form to the absolute representation: `/root/` INCLUDING the property path if any.
+## Moves nodes from one parent to another and returns an array of all children that were successfully reparented.
+static func reparentNodes(currentParent: Node, nodesToTransfer: Array[Node], newParent: Node, keepGlobalTransform: bool = true) -> Array[Node]:
+	var transferredNodes: Array[Node]
+	for node in nodesToTransfer:
+		if node.get_parent() == currentParent: # TBD: Is this extra layer of "security" necessary?
+			node.reparent(newParent, keepGlobalTransform)
+			node.owner = newParent # For persistence etc.
+			if node.get_parent() == newParent: # TBD: Is this verification necessary?
+				transferredNodes.append(node)
+			else:
+				Debug.printWarning(str("transferNodes(): ", node, " could not be moved from ", currentParent, " to newParent: ", newParent), node)
+				continue
+		else:
+			Debug.printWarning(str("transferNodes(): ", node, " does not belong to currentParent: ", currentParent), node)
+			continue
+	return transferredNodes
+
+
+## Convert a [NodePath] from the `./` form to the absolute representation: `/root/` INCLUDING the property path if any.
 static func convertRelativePathToAbsolute(parentNodeToConvertFrom: Node, relativePath: NodePath) -> NodePath:
 	var absoluteNodePath: String = parentNodeToConvertFrom.get_node(relativePath).get_path()
 	var propertyPath: String = str(":", relativePath.get_concatenated_subnames())
@@ -147,6 +169,7 @@ static func convertRelativePathToAbsolute(parentNodeToConvertFrom: Node, relativ
 	return absolutePathIncludingProperty
 
 
+## Splits a [NodePath] such as `/root:size:x` and returns `/root` & `:size:x`
 static func splitPathIntoNodeAndProperty(path: NodePath) -> Array[NodePath]:
 	var nodePath: NodePath
 	var propertyPath: NodePath

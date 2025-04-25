@@ -19,7 +19,7 @@ var audioPlayers: Array[AudioStreamPlayer2D]
 var currentAudioPlayerIndex: int
 
 var musicFiles: PackedStringArray ## An array that is populated by all the ".mp3" files found in the [const musicFolder] on [method _ready].
-var currentMusicIndex: int ## The index in the [member musicFiles] array of the currently playing song.
+var currentMusicIndex: int = -1 ## The index in the [member musicFiles] array of the currently playing song. Defaults to -1 to indicate no song.
 #endregion
 
 
@@ -148,6 +148,13 @@ func getMusicFilesFromFolder(path: String = self.musicFolder) -> PackedStringArr
 	return files
 
 
+## Searches for the specified song name and returns its index in the [member musicFiles] array if found, otherwise -1
+func findMusicFile(fileName: String) -> int:
+	var matchingIndex: int = self.musicFiles.find(fileName)
+	if matchingIndex < 0: Debug.printWarning("findMusicFile() cannot find: " + fileName, self)
+	return matchingIndex
+
+
 ## Plays the song found at the specified index in the [member musicFiles] array.
 func playMusicIndex(index: int = self.currentMusicIndex) -> AudioStream:
 	if currentMusicIndex == 0 and self.musicFiles.is_empty(): # Silence warning for the default state of new projects: No music files.
@@ -155,6 +162,7 @@ func playMusicIndex(index: int = self.currentMusicIndex) -> AudioStream:
 		return null
 	
 	if Tools.validateArrayIndex(self.musicFiles, index):
+		self.currentMusicIndex = index
 		return self.playMusicFile(self.musicFiles[index])
 	else:
 		Debug.printWarning(str("playMusicIndex() invalid index: ", index, ", musicFiles size: ", musicFiles.size()), self)
@@ -162,9 +170,19 @@ func playMusicIndex(index: int = self.currentMusicIndex) -> AudioStream:
 
 
 ## Plays and returns a random song from the [member musicFiles] array.
-## NOTE: The same song as the current/previous song may be played again. Such is the nature of true randomness.
-func playRandomMusicIndex() -> AudioStream:
-	return self.playMusicIndex(randi_range(0, self.musicFiles.size() - 1)) # randi_range() is inclusive and size() is +1 > maximum valid array index.
+## If [param allowRepeats] is `true` the same song as the current/previous song may be played again. Such is the nature of true randomness.
+func playRandomMusicIndex(allowRepeats: bool = false) -> AudioStream:
+	if self.musicFiles.is_empty():
+		return null
+	elif allowRepeats or self.musicFiles.size() == 1: # No need to random if there's only 1 song!
+		return self.playMusicIndex(randi_range(0, self.musicFiles.size() - 1)) # randi_range() is inclusive and size() is +1 > maximum valid array index.
+	else:
+		var newMusicIndex: int = self.currentMusicIndex
+		var tries: int = 0 # Limit the number of tries so we don't get stuck in an infinite loop during pauses etc.
+		while newMusicIndex == self.currentMusicIndex and tries < 100: # 100 should be enough to ensure no repeats, right?
+			newMusicIndex = randi_range(0, self.musicFiles.size() - 1)
+			tries += 1
+		return self.playMusicIndex(newMusicIndex)
 
 
 ## Plays and returns the specified file on the "MusicPlayer" [AudioStreamPlayer] node.
@@ -174,15 +192,38 @@ func playMusicFile(path: String) -> AudioStream:
 	if newMusicStream == null:
 		Debug.printWarning("playMusicFile() cannot load " + path, self)
 		return null
+
+	# Convert any UIDs to the actual text path
+	var fileName: String
+	if ResourceUID.has_id(ResourceUID.text_to_id(path)):
+		fileName = ResourceUID.get_id_path(ResourceUID.text_to_id(path))
+	else:
+		fileName = path
 	
+	# Update the current index if the song is in our playlist
+	self.currentMusicIndex = self.findMusicFile(fileName)
+
 	self.musicPlayer.stream = newMusicStream
 	self.musicPlayer.play()
-	self.musicPlayerDidPlay.emit(path)
+	self.musicPlayerDidPlay.emit(fileName)
 	return newMusicStream
+
+
+func skipMusic() -> AudioStream:
+	self.musicPlayerDidStop.emit()
+	return self.playRandomMusicIndex()
 
 
 func onMusicPlayer_finished() -> void:
 	self.musicPlayerDidStop.emit()
+	self.playRandomMusicIndex()
+
+
+func _input(event: InputEvent) -> void:
+	# BUG: Gets called twice in the same frame??
+	if event.is_action(GlobalInput.Actions.skipMusic) and Input.is_action_just_pressed(GlobalInput.Actions.skipMusic):
+		self.get_viewport().set_input_as_handled()
+		self.skipMusic()
 
 #endregion
 
